@@ -771,8 +771,15 @@ class JarvisLive:
                 result = r or "Done."
 
             elif name == "dev_agent":
-                r = await loop.run_in_executor(None, lambda: dev_agent(parameters=args, player=self.ui, speak=self.speak))
-                result = r or "Done."
+                def _run_agent():
+                    try:
+                        dev_agent(parameters=args, player=self.ui, speak=self.speak)
+                    except Exception as e:
+                        print(f"[DevAgent] Error: {e}")
+                
+                # Spawn in background so it doesn't block the Live API connection
+                asyncio.create_task(asyncio.to_thread(_run_agent))
+                result = "Background agent task started. I am working on this in the background, sir."
 
             elif name == "web_search":
                 r = await loop.run_in_executor(None, lambda: web_search_action(parameters=args, player=self.ui))
