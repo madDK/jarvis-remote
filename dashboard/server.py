@@ -374,6 +374,8 @@ class DashboardServer:
         self._aes_cache:  dict[str, bytes]= {}   # session_key → AES bytes
         self._clients: set[WebSocket]     = set()
         self._agent_clients: set[WebSocket] = set()
+        self._latest_screen_frame: bytes | None = None
+        self._pending_actions: list[dict] = []
         self._history: list[dict]         = []
         self._command_queue               = asyncio.Queue()
         self._wake_callback               = None
@@ -743,11 +745,38 @@ class DashboardServer:
 
         # ── Live PC Screen Stream & Remote Desktop Control ─────────────────────
 
+        @app.post("/api/screen/push_frame")
+        async def push_screen_frame(req: Request):
+            tok = req.headers.get("authorization", "").removeprefix("Bearer ").strip()
+            if not tok or tok not in self._tokens:
+                return JSONResponse({"error": "Unauthorized"}, status_code=401)
+            try:
+                body = await req.json()
+                b64_frame = body.get("frame", "")
+                if b64_frame:
+                    import base64
+                    self._latest_screen_frame = base64.b64decode(b64_frame)
+                return JSONResponse({"ok": True})
+            except Exception as e:
+                return JSONResponse({"error": str(e)}, status_code=500)
+
+        @app.get("/api/screen/pending_actions")
+        async def pending_screen_actions(req: Request):
+            tok = req.headers.get("authorization", "").removeprefix("Bearer ").strip()
+            if not tok or tok not in self._tokens:
+                return JSONResponse({"error": "Unauthorized"}, status_code=401)
+            actions = list(self._pending_actions)
+            self._pending_actions.clear()
+            return JSONResponse({"actions": actions})
+
         @app.get("/api/screen/frame")
         async def get_screen_frame(req: Request, token: str = ""):
             tok = token.strip() or req.headers.get("authorization", "").removeprefix("Bearer ").strip()
             if not tok or tok not in self._tokens:
                 return JSONResponse({"error": "Unauthorized"}, status_code=401)
+            if self._latest_screen_frame:
+                from fastapi.responses import Response
+                return Response(content=self._latest_screen_frame, media_type="image/jpeg", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
             try:
                 from PIL import ImageGrab
                 import io
@@ -762,38 +791,32 @@ class DashboardServer:
                 from fastapi.responses import Response
                 return Response(content=buf.getvalue(), media_type="image/jpeg", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
             except Exception as e:
-                return JSONResponse({"error": str(e)}, status_code=500)
+                return JSONResponse({"error": "Screen unavailable"}, status_code=503)
 
         @app.post("/api/screen/click")
         async def screen_click(req: Request):
             if not _auth(req):
                 return JSONResponse({"error": "Unauthorized"}, status_code=401)
             try:
-                import pyautogui
                 body = await req.json()
-                norm_x = float(body.get("x", 0))
-                norm_y = float(body.get("y", 0))
-                click_type = str(body.get("type", "left")).lower()
-
-                sw, sh = pyautogui.size()
-                target_x = max(0, min(sw - 1, int(norm_x * sw)))
-                target_y = max(0, min(sh - 1, int(norm_y * sh)))
-
-                if click_type == "double":
-                    pyautogui.doubleClick(target_x, target_y)
-                elif click_type == "right":
-                    pyautogui.rightClick(target_x, target_y)
-                elif click_type == "move":
-                    pyautogui.moveTo(target_x, target_y)
-                elif click_type == "down":
-                    pyautogui.mouseDown(target_x, target_y)
-                elif click_type == "up":
-                    pyautogui.mouseUp(target_x, target_y)
-                elif click_type == "drag":
-                    pyautogui.dragTo(target_x, target_y)
-                else:
-                    pyautogui.click(target_x, target_y)
-                return JSONResponse({"ok": True, "x": target_x, "y": target_y})
+                self._pending_actions.append({"action": "click", "data": body})
+                try:
+                    import pyautogui
+                    norm_x = float(body.get("x", 0))
+                    norm_y = float(body.get("y", 0))
+                    click_type = str(body.get("type", "left")).lower()
+                    sw, sh = pyautogui.size()
+                    target_x = max(0, min(sw - 1, int(norm_x * sw)))
+                    target_y = max(0, min(sh - 1, int(norm_y * sh)))
+                    if click_type == "double": pyautogui.doubleClick(target_x, target_y)
+                    elif click_type == "right": pyautogui.rightClick(target_x, target_y)
+                    elif click_type == "move": pyautogui.moveTo(target_x, target_y)
+                    elif click_type == "down": pyautogui.mouseDown(target_x, target_y)
+                    elif click_type == "up": pyautogui.mouseUp(target_x, target_y)
+                    elif click_type == "drag": pyautogui.dragTo(target_x, target_y)
+                    else: pyautogui.click(target_x, target_y)
+                except Exception: pass
+                return JSONResponse({"ok": True})
             except Exception as e:
                 return JSONResponse({"error": str(e)}, status_code=500)
 
@@ -802,12 +825,15 @@ class DashboardServer:
             if not _auth(req):
                 return JSONResponse({"error": "Unauthorized"}, status_code=401)
             try:
-                import pyautogui
                 body = await req.json()
-                amount = int(body.get("amount", 3))
-                direction = str(body.get("direction", "down")).lower()
-                clicks = -amount if direction == "down" else amount
-                pyautogui.scroll(clicks * 100)
+                self._pending_actions.append({"action": "scroll", "data": body})
+                try:
+                    import pyautogui
+                    amount = int(body.get("amount", 3))
+                    direction = str(body.get("direction", "down")).lower()
+                    clicks = -amount if direction == "down" else amount
+                    pyautogui.scroll(clicks * 100)
+                except Exception: pass
                 return JSONResponse({"ok": True})
             except Exception as e:
                 return JSONResponse({"error": str(e)}, status_code=500)
@@ -817,18 +843,21 @@ class DashboardServer:
             if not _auth(req):
                 return JSONResponse({"error": "Unauthorized"}, status_code=401)
             try:
-                import pyautogui
                 body = await req.json()
-                key = str(body.get("key", "")).strip()
-                action_type = str(body.get("action", "press")).lower()
-                if key:
-                    if "+" in key:
-                        keys = [k.strip() for k in key.split("+")]
-                        pyautogui.hotkey(*keys)
-                    elif action_type == "type":
-                        pyautogui.write(key)
-                    else:
-                        pyautogui.press(key)
+                self._pending_actions.append({"action": "key", "data": body})
+                try:
+                    import pyautogui
+                    key = str(body.get("key", "")).strip()
+                    action_type = str(body.get("action", "press")).lower()
+                    if key:
+                        if "+" in key:
+                            keys = [k.strip() for k in key.split("+")]
+                            pyautogui.hotkey(*keys)
+                        elif action_type == "type":
+                            pyautogui.write(key)
+                        else:
+                            pyautogui.press(key)
+                except Exception: pass
                 return JSONResponse({"ok": True})
             except Exception as e:
                 return JSONResponse({"error": str(e)}, status_code=500)

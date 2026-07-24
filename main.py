@@ -1207,25 +1207,58 @@ class JarvisLive:
                 await asyncio.sleep(0.5)
 
     async def _cloud_relay_loop(self, base_url: str, pin: str):
-        try:
-            import websockets
-            import base64
-            from actions.screen_processor import _capture_screen
-            ws_url = base_url.replace("http://", "ws://").replace("https://", "wss://") + f"/ws/agent?token={pin}"
-            while True:
-                try:
-                    async with websockets.connect(ws_url) as ws:
-                        print(f"[CloudRelay] 🚀 Tunnel established with {base_url}")
-                        while True:
-                            frame = _capture_screen(quality=40)
-                            if frame:
-                                b64 = base64.b64encode(frame).decode("ascii")
-                                await ws.send(json.dumps({"type": "screen_frame", "frame": b64}))
-                            await asyncio.sleep(0.5)
-                except Exception as e:
-                    await asyncio.sleep(5)
-        except Exception as e:
-            print(f"[CloudRelay] Relay error: {e}")
+        import base64
+        import requests
+        from actions.screen_processor import _capture_screen
+        import pyautogui
+
+        headers = {"Authorization": f"Bearer {pin}", "Content-Type": "application/json"}
+        push_url = f"{base_url}/api/screen/push_frame"
+        poll_url = f"{base_url}/api/screen/pending_actions"
+
+        print(f"[CloudRelay] 🚀 Relaying PC screen & touch controls to {base_url}")
+        
+        while True:
+            try:
+                # 1. Capture & push latest PC screen frame
+                frame = _capture_screen(quality=40)
+                if frame:
+                    b64_str = base64.b64encode(frame).decode("ascii")
+                    requests.post(push_url, json={"frame": b64_str}, headers=headers, timeout=3)
+                
+                # 2. Poll & execute remote touch clicks and keypresses from phone
+                res = requests.get(poll_url, headers=headers, timeout=3)
+                if res.status_code == 200:
+                    actions = res.json().get("actions", [])
+                    for act in actions:
+                        atype = act.get("action")
+                        data  = act.get("data", {})
+                        if atype == "click":
+                            norm_x = float(data.get("x", 0))
+                            norm_y = float(data.get("y", 0))
+                            ctype  = str(data.get("type", "left")).lower()
+                            sw, sh = pyautogui.size()
+                            tx, ty = max(0, min(sw - 1, int(norm_x * sw))), max(0, min(sh - 1, int(norm_y * sh)))
+                            if ctype == "double": pyautogui.doubleClick(tx, ty)
+                            elif ctype == "right": pyautogui.rightClick(tx, ty)
+                            elif ctype == "move": pyautogui.moveTo(tx, ty)
+                            elif ctype == "down": pyautogui.mouseDown(tx, ty)
+                            elif ctype == "up": pyautogui.mouseUp(tx, ty)
+                            elif ctype == "drag": pyautogui.dragTo(tx, ty)
+                            else: pyautogui.click(tx, ty)
+                        elif atype == "key":
+                            k = str(data.get("key", "")).strip()
+                            if k:
+                                if "+" in k: pyautogui.hotkey(*[x.strip() for x in k.split("+")])
+                                elif data.get("action") == "type": pyautogui.write(k)
+                                else: pyautogui.press(k)
+                        elif atype == "scroll":
+                            amt = int(data.get("amount", 3))
+                            d = str(data.get("direction", "down")).lower()
+                            pyautogui.scroll((-amt if d == "down" else amt) * 100)
+            except Exception:
+                pass
+            await asyncio.sleep(0.5)
 
     # ── main loop ───────────────────────────────────────────────────────────
 
