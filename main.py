@@ -1206,6 +1206,27 @@ class JarvisLive:
                 print(f"[Dashboard] Command error: {e}")
                 await asyncio.sleep(0.5)
 
+    async def _cloud_relay_loop(self, base_url: str, pin: str):
+        try:
+            import websockets
+            import base64
+            from actions.screen_processor import _capture_screen
+            ws_url = base_url.replace("http://", "ws://").replace("https://", "wss://") + f"/ws/agent?token={pin}"
+            while True:
+                try:
+                    async with websockets.connect(ws_url) as ws:
+                        print(f"[CloudRelay] 🚀 Tunnel established with {base_url}")
+                        while True:
+                            frame = _capture_screen(quality=40)
+                            if frame:
+                                b64 = base64.b64encode(frame).decode("ascii")
+                                await ws.send(json.dumps({"type": "screen_frame", "frame": b64}))
+                            await asyncio.sleep(0.5)
+                except Exception as e:
+                    await asyncio.sleep(5)
+        except Exception as e:
+            print(f"[CloudRelay] Relay error: {e}")
+
     # ── main loop ───────────────────────────────────────────────────────────
 
     async def run(self):
@@ -1223,6 +1244,20 @@ class JarvisLive:
             self.ui.write_log(f"🔑 Remote Control Security Key: {key}")
             asyncio.create_task(self._dashboard.serve())
             asyncio.create_task(self._process_dashboard_commands())
+
+            # Check cloud relay URL from config/api_keys.json
+            try:
+                cfg_file = Path(__file__).resolve().parent / "config" / "api_keys.json"
+                if cfg_file.exists():
+                    cfg_data = json.loads(cfg_file.read_text())
+                    cloud_url = cfg_data.get("remote_server_url", "").strip().rstrip("/")
+                    if cloud_url:
+                        print(f"[CloudRelay] 🌐 Remote Server configured: {cloud_url}")
+                        print(f"[CloudRelay] 🔑 Security Pin: {cfg_data.get('remote_key', key)}")
+                        self.ui.write_log(f"🌐 Cloud Server: {cloud_url}")
+                        asyncio.create_task(self._cloud_relay_loop(cloud_url, cfg_data.get("remote_key", key)))
+            except Exception as e:
+                print(f"[CloudRelay] Config check error: {e}")
         except Exception as e:
             print(f"[Dashboard] Disabled: {e}")
             self._dashboard = None
