@@ -373,6 +373,7 @@ class DashboardServer:
         self._token_keys: dict[str, str]  = {}   # auth_token → session_key
         self._aes_cache:  dict[str, bytes]= {}   # session_key → AES bytes
         self._clients: set[WebSocket]     = set()
+        self._agent_clients: set[WebSocket] = set()
         self._history: list[dict]         = []
         self._command_queue               = asyncio.Queue()
         self._wake_callback               = None
@@ -861,6 +862,25 @@ class DashboardServer:
                 pass
             finally:
                 self._clients.discard(websocket)
+
+        @app.websocket("/ws/agent")
+        async def agent_ws(websocket: WebSocket, token: str = ""):
+            tok = token.strip()
+            if not tok or tok not in self._tokens:
+                await websocket.close(code=4001)
+                return
+            await websocket.accept()
+            self._agent_clients.add(websocket)
+            try:
+                while True:
+                    data = await websocket.receive_json()
+                    mtype = data.get("type")
+                    if mtype in ("log", "status", "sys", "screen_frame", "clear_audio"):
+                        await self.broadcast(data)
+            except WebSocketDisconnect:
+                pass
+            finally:
+                self._agent_clients.discard(websocket)
 
         return app
 
