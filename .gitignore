@@ -1,0 +1,17 @@
+# Secret API keys & sensitive data
+config/api_keys.json
+config/certs/
+*.key
+*.crt
+*.json
+!memory/config_manager.py
+
+# Python & Cache
+__pycache__/
+*.pyc
+*.pyo
+.versavoiceai/
+.env
+.venv/
+env/
+venv/
