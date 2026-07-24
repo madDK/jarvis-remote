@@ -1212,6 +1212,9 @@ class JarvisLive:
         from actions.screen_processor import _capture_screen
         import pyautogui
 
+        pyautogui.FAILSAFE = False
+        pyautogui.PAUSE = 0.0
+
         headers = {"Authorization": f"Bearer {pin}", "Content-Type": "application/json"}
         push_url = f"{base_url}/api/screen/push_frame"
         poll_url = f"{base_url}/api/screen/pending_actions"

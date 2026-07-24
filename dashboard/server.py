@@ -802,6 +802,8 @@ class DashboardServer:
                 self._pending_actions.append({"action": "click", "data": body})
                 try:
                     import pyautogui
+                    pyautogui.FAILSAFE = False
+                    pyautogui.PAUSE = 0.0
                     norm_x = float(body.get("x", 0))
                     norm_y = float(body.get("y", 0))
                     click_type = str(body.get("type", "left")).lower()

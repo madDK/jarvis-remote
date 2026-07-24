@@ -693,14 +693,18 @@
         });
       };
 
+      let _lastTouchEndTime = 0;
+
       // Desktop Mouse Click
       img.addEventListener('click', (e) => {
+        if (Date.now() - _lastTouchEndTime < 500) return; // Prevent ghost click after touch
         if (_touchMoved) return;
         sendTouchAction(e.clientX, e.clientY, _touchMode);
       });
 
       // Mobile Touch Gesture Engine (Instant Tap Click, Double Tap, Long-Press Right Click)
       img.addEventListener('touchstart', (e) => {
+        if (e.cancelable) e.preventDefault(); // Stop mobile browser scrolling/zoom
         clearTimeout(_longPressTimer);
         _touchMoved = false;
         _touchStartTime = Date.now();
@@ -726,9 +730,10 @@
         } else if (e.touches.length === 2) {
           _touchStartY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
         }
-      }, { passive: true });
+      }, { passive: false });
 
       img.addEventListener('touchmove', (e) => {
+        if (e.cancelable) e.preventDefault(); // Stop mobile browser scrolling/zoom
         const now = Date.now();
         if (e.touches.length === 1) {
           const t = e.touches[0];
@@ -755,9 +760,11 @@
             }
           }
         }
-      }, { passive: true });
+      }, { passive: false });
 
       img.addEventListener('touchend', (e) => {
+        if (e.cancelable) e.preventDefault();
+        _lastTouchEndTime = Date.now();
         clearTimeout(_longPressTimer);
         const touchDuration = Date.now() - _touchStartTime;
 
@@ -783,7 +790,7 @@
             focusMobileKeyboard();
           }
         }
-      }, { passive: true });
+      }, { passive: false });
 
       _initVirtualKeyboardBridge();
     }
