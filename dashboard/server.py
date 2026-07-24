@@ -391,6 +391,19 @@ class DashboardServer:
     def new_key(self, expiry_secs: int = 600) -> str:
         now = time.time()
         self._pending_keys = {k: v for k, v in self._pending_keys.items() if v > now}
+
+        try:
+            import json
+            cfg_path = BASE_DIR / "config" / "api_keys.json"
+            if cfg_path.exists():
+                cfg = json.loads(cfg_path.read_text())
+                custom_key = str(cfg.get("remote_key", "")).strip()
+                if custom_key:
+                    self._pending_keys[custom_key] = now + 86400 * 365
+                    return custom_key
+        except Exception:
+            pass
+
         key = ''.join(secrets.choice(_KEY_CHARS) for _ in range(6))
         self._pending_keys[key] = now + expiry_secs
         return key

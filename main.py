@@ -1216,8 +1216,12 @@ class JarvisLive:
             from dashboard.server import DashboardServer
             self._dashboard = DashboardServer()
             self._dashboard.set_connect_callback(self._on_phone_connected)
+            key = self._dashboard.new_key(3600)
+            print(f"\n=======================================================")
+            print(f"[Dashboard] 🔑 REMOTE CONTROL SECURITY KEY: {key}")
+            print(f"=======================================================\n")
+            self.ui.write_log(f"🔑 Remote Control Security Key: {key}")
             asyncio.create_task(self._dashboard.serve())
-            # Runs for the whole lifetime, not just inside an active session
             asyncio.create_task(self._process_dashboard_commands())
         except Exception as e:
             print(f"[Dashboard] Disabled: {e}")
