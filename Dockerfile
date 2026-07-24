@@ -5,6 +5,8 @@ WORKDIR /app
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    portaudio19-dev \
+    ffmpeg \
     && rm -rf /var/lib/apt-get/lists/*
 
 # Copy requirements & install dependencies
@@ -14,8 +16,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy project files
 COPY . .
 
-# Expose Hugging Face default port
+# Environment flag for 24/7 Headless Cloud execution
+ENV HEADLESS=1
 EXPOSE 7860
 
-# Start Uvicorn Server
-CMD ["uvicorn", "dashboard.server:app", "--host", "0.0.0.0", "--port", "7860"]
+# Run Full Autonomous Cloud JARVIS Engine + Dashboard
+CMD ["python", "main.py"]

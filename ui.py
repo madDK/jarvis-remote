@@ -2465,3 +2465,49 @@ class JarvisUI:
     def stop_speaking(self):
         if not self.muted:
             self.set_state("LISTENING")
+
+
+class HeadlessUI:
+    """Headless UI fallback for running full JARVIS 24/7 on free cloud servers (Render, Koyeb, Railway, Docker, HF)."""
+    def __init__(self, face_path: str = None):
+        self.muted = False
+        self.speaking = False
+        self.state = "SLEEPING"
+        self.on_text_command = None
+        self.on_remote_clicked = None
+        self.on_interrupt = None
+        self._ready = True
+
+    @property
+    def current_file(self) -> str | None:
+        return None
+
+    def notify_phone_connected(self) -> None:
+        print("[JARVIS] 📱 Remote phone connected")
+
+    def set_state(self, state: str):
+        self.state = state
+        print(f"[JARVIS STATE] {state}")
+
+    def write_log(self, text: str):
+        print(f"[JARVIS LOG] {text}")
+
+    def wait_for_api_key(self):
+        key = os.environ.get("GEMINI_API_KEY")
+        if key:
+            config_dir = _base_dir() / "config"
+            config_dir.mkdir(exist_ok=True)
+            key_file = config_dir / "api_keys.json"
+            key_file.write_text(json.dumps({"gemini_api_key": key, "os_system": sys.platform}))
+
+    def show_content(self, title: str, text: str):
+        print(f"[JARVIS CONTENT] {title}\n{text}")
+
+    def prompt_reconfig(self):
+        print("[JARVIS] API key required. Set GEMINI_API_KEY environment variable.")
+
+    def show_camera_frame(self, img_bytes: bytes): pass
+    def start_camera_stream(self) -> None: pass
+    def stop_camera_stream(self) -> None: pass
+    def start_speaking(self): self.set_state("SPEAKING")
+    def stop_speaking(self): self.set_state("LISTENING")

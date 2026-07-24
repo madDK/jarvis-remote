@@ -1326,18 +1326,44 @@ class JarvisLive:
             await asyncio.sleep(delay)
 
 def main():
-    ui = JarvisUI("face.png")
+    import os
+    headless_mode = os.environ.get("HEADLESS", "").lower() in ("1", "true", "yes") or "--headless" in sys.argv
 
-    def runner():
+    if headless_mode or (sys.platform != "win32" and not os.environ.get("DISPLAY")):
+        print("[JARVIS] 🚀 Starting Full Autonomous Cloud Assistant (Headless Mode)...")
+        from ui import HeadlessUI
+        ui = HeadlessUI()
         ui.wait_for_api_key()
         jarvis = JarvisLive(ui)
         try:
             asyncio.run(jarvis.run())
         except KeyboardInterrupt:
             print("\n🔴 Shutting down...")
+    else:
+        try:
+            from ui import JarvisUI
+            ui = JarvisUI("face.png")
 
-    threading.Thread(target=runner, daemon=True).start()
-    ui.root.mainloop()
+            def runner():
+                ui.wait_for_api_key()
+                jarvis = JarvisLive(ui)
+                try:
+                    asyncio.run(jarvis.run())
+                except KeyboardInterrupt:
+                    print("\n🔴 Shutting down...")
+
+            threading.Thread(target=runner, daemon=True).start()
+            ui.root.mainloop()
+        except Exception as e:
+            print(f"[JARVIS] GUI unavailable ({e}), falling back to Headless Mode...")
+            from ui import HeadlessUI
+            ui = HeadlessUI()
+            ui.wait_for_api_key()
+            jarvis = JarvisLive(ui)
+            try:
+                asyncio.run(jarvis.run())
+            except KeyboardInterrupt:
+                print("\n🔴 Shutting down...")
 
 if __name__ == "__main__":
     main()
