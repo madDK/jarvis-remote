@@ -1,28 +1,8 @@
-gradio
-sounddevice
-google-genai
-google-generativeai
-pillow
-requests
-beautifulsoup4
-duckduckgo-search
-playwright
-pyautogui
-pyperclip
-pygetwindow
-opencv-python
-numpy
-mss
-psutil
-send2trash
-youtube-transcript-api
-python-pptx
-fastapi
-uvicorn[standard]
-cryptography
-python-multipart
-comtypes; sys_platform == "win32"
-pycaw; sys_platform == "win32"
-win10toast; sys_platform == "win32"
-pywinauto; sys_platform == "win32"
-qrcode[pil]
+fastapi>=0.100.0
+uvicorn[standard]>=0.22.0
+cryptography>=41.0.0
+python-multipart>=0.0.6
+pillow>=9.5.0
+gradio>=4.26.0
+requests>=2.28.0
+qrcode[pil]>=7.4.0
