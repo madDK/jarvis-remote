@@ -66,8 +66,7 @@ def _get_gemini_key() -> str | None:
     except Exception:
         return None
 
-_KEY_CHARS = [c for c in (string.ascii_uppercase + string.digits)
-              if c not in ('O', 'I', 'L', '0', '1')]
+_KEY_CHARS = list(string.ascii_uppercase + string.digits)
 
 # ── AES-256-CBC ───────────────────────────────────────────────────────────────
 _AES_SALT = b'JARVIS-DASHBOARD-v1'
