@@ -110,7 +110,7 @@ TOOL_DECLARATIONS = [
             "properties": {
                 "app_name": {
                     "type": "STRING",
-                    "description": "Exact name of the application (e.g. 'WhatsApp', 'Chrome', 'Spotify')"
+                    "description": "Exact name of the application (e.g. 'WhatsApp', 'Word', 'Excel', 'PowerPoint', 'Paint', 'Spotify')"
                 }
             },
             "required": ["app_name"]
@@ -298,6 +298,20 @@ TOOL_DECLARATIONS = [
                 "count":       {"type": "INTEGER", "description": "Number of results for largest"},
             },
             "required": ["action"]
+        }
+    },
+    {
+        "name": "open_maps",
+        "description": "Opens Google Maps in the browser to search for a specific location, city, or address.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "location": {
+                    "type": "STRING",
+                    "description": "The exact location to search for (e.g. 'New York', 'Eiffel Tower', 'nearest gas station')"
+                }
+            },
+            "required": ["location"]
         }
     },
     {
@@ -698,6 +712,16 @@ class JarvisLive:
             if name == "open_app":
                 r = await loop.run_in_executor(None, lambda: open_app(parameters=args, response=None, player=self.ui))
                 result = r or f"Opened {args.get('app_name')}."
+
+            elif name == "open_maps":
+                loc = args.get("location", "")
+                if loc:
+                    url = f"https://www.google.com/maps/search/{loc.replace(' ', '+')}"
+                    import webbrowser
+                    webbrowser.open(url)
+                    result = f"I have opened Google Maps for {loc} in your browser, sir."
+                else:
+                    result = "No location specified."
 
             elif name == "weather_report":
                 r = await loop.run_in_executor(None, lambda: weather_action(parameters=args, player=self.ui))
